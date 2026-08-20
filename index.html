@@ -42,14 +42,16 @@
         .currency-card { background: var(--surface); border-radius: 18px; padding: 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--surface2); transition: border-color 0.2s; }
         .currency-card:focus-within { border-color: var(--accent); }
         
-        .currency-info { display: flex; flex-direction: column; gap: 0.2rem; }
+        .currency-info { display: flex; flex-direction: column; gap: 0.2rem; flex-shrink: 0; }
         .currency-code { font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
         .currency-name { font-size: 0.8rem; color: var(--label2); }
         
-        .currency-input { flex: 1; background: transparent; border: none; color: var(--label); font-size: 2.2rem; font-weight: 700; text-align: right; outline: none; font-variant-numeric: tabular-nums; width: 100%; padding-left: 1rem; }
+        .input-group { display: flex; align-items: baseline; justify-content: flex-end; flex: 1; min-width: 0; padding-left: 1rem; }
+        .currency-symbol { font-size: 1.4rem; font-weight: 700; color: var(--label2); margin-right: 0.3rem; }
+        .currency-input { background: transparent; border: none; color: var(--label); font-size: 2.2rem; font-weight: 700; text-align: right; outline: none; font-variant-numeric: tabular-nums; width: 100%; min-width: 0; padding: 0; margin: 0; }
         .currency-input::placeholder { color: var(--surface3); }
         
-        #inputUSD { color: var(--red); }
+        #inputUSD, #symUSD { color: var(--red); }
 
         .rates-info { margin-top: 1.5rem; font-size: 0.75rem; color: var(--label3); text-align: center; line-height: 1.5; }
         .rates-info span { font-weight: 600; color: var(--label2); }
@@ -75,7 +77,10 @@
                 <div class="currency-code">🇧🇷 BRL</div>
                 <div class="currency-name">Reales</div>
             </div>
-            <input type="number" class="currency-input" id="inputBRL" placeholder="0" inputmode="decimal" oninput="calc('BRL')">
+            <div class="input-group">
+                <span class="currency-symbol" id="symBRL">R$</span>
+                <input type="text" class="currency-input" id="inputBRL" placeholder="0,00" inputmode="decimal" oninput="calc('BRL')" onblur="formatActive('BRL')" onfocus="this.select()">
+            </div>
         </div>
 
         <div class="currency-card">
@@ -83,7 +88,10 @@
                 <div class="currency-code">🇺🇸 USD</div>
                 <div class="currency-name">Dólares</div>
             </div>
-            <input type="number" class="currency-input" id="inputUSD" placeholder="0" inputmode="decimal" oninput="calc('USD')">
+            <div class="input-group">
+                <span class="currency-symbol" id="symUSD">USD</span>
+                <input type="text" class="currency-input" id="inputUSD" placeholder="0,00" inputmode="decimal" oninput="calc('USD')" onblur="formatActive('USD')" onfocus="this.select()">
+            </div>
         </div>
 
         <div class="currency-card">
@@ -91,7 +99,10 @@
                 <div class="currency-code">🇦🇷 ARS</div>
                 <div class="currency-name">Pesos (Blue)</div>
             </div>
-            <input type="number" class="currency-input" id="inputARS" placeholder="0" inputmode="decimal" oninput="calc('ARS')">
+            <div class="input-group">
+                <span class="currency-symbol" id="symARS">$</span>
+                <input type="text" class="currency-input" id="inputARS" placeholder="0,00" inputmode="decimal" oninput="calc('ARS')" onblur="formatActive('ARS')" onfocus="this.select()">
+            </div>
         </div>
 
         <div class="rates-info">
@@ -102,13 +113,42 @@
     </div>
 
     <script>
-        // Tasas por defecto (Fallbacks si no hay internet o es la primera vez en el dispositivo)
         let rateBRL = parseFloat(localStorage.getItem('tp_rate_brl')) || 5.45;
         let rateARS = parseFloat(localStorage.getItem('tp_rate_ars')) || 1350.00;
 
         function updateLabels() {
-            document.getElementById('lblRateBRL').textContent = rateBRL.toFixed(2);
-            document.getElementById('lblRateARS').textContent = rateARS.toFixed(2);
+            document.getElementById('lblRateBRL').textContent = rateBRL.toLocaleString('es-AR', {minimumFractionDigits: 2});
+            document.getElementById('lblRateARS').textContent = rateARS.toLocaleString('es-AR', {minimumFractionDigits: 2});
+        }
+
+        // Transforma strings humanos (ej: 1.500,50 o 1500.5) en números reales (float)
+        function parseValue(str) {
+            if (!str) return NaN;
+            let cleaned = str.replace(/[^\d.,]/g, '');
+            const dotIdx = cleaned.lastIndexOf('.');
+            const commaIdx = cleaned.lastIndexOf(',');
+            
+            if (commaIdx > dotIdx) {
+                cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+            } else if (dotIdx > commaIdx) {
+                cleaned = cleaned.replace(/,/g, '');
+            } else {
+                if (commaIdx !== -1) cleaned = cleaned.replace(',', '.');
+            }
+            return parseFloat(cleaned);
+        }
+
+        // Formatea números reales en formato amigable (ej: 1.500.000,00)
+        function formatNumber(num) {
+            return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatActive(source) {
+            const el = document.getElementById('input' + source);
+            const val = parseValue(el.value);
+            if (!isNaN(val)) {
+                el.value = formatNumber(val);
+            }
         }
 
         async function fetchLiveRates() {
@@ -125,7 +165,6 @@
             netStatus.textContent = 'Actualizando tasas...';
             
             try {
-                // 1. Fetch Dólar Global -> BRL
                 const resBRL = await fetch('https://open.er-api.com/v6/latest/USD');
                 if (resBRL.ok) {
                     const dataBRL = await resBRL.json();
@@ -133,7 +172,6 @@
                     localStorage.setItem('tp_rate_brl', rateBRL);
                 }
 
-                // 2. Fetch Dólar Blue Argentina -> ARS (DolarAPI - Sin CORS)
                 const resARS = await fetch('https://dolarapi.com/v1/dolares/blue');
                 if (resARS.ok) {
                     const dataARS = await resARS.json();
@@ -150,7 +188,6 @@
             
             updateLabels();
             
-            // Si hay un valor previamente escrito, recalcular automáticamente con las tasas nuevas
             if (document.getElementById('inputUSD').value !== '') {
                 calc('USD');
             } else if (document.getElementById('inputBRL').value !== '') {
@@ -160,15 +197,21 @@
 
         function editRates() {
             const newBRL = prompt("Modificar Tasa Manual\\n1 USD a BRL (Reales):", rateBRL);
-            if (newBRL !== null && !isNaN(parseFloat(newBRL))) {
-                rateBRL = parseFloat(newBRL);
-                localStorage.setItem('tp_rate_brl', rateBRL);
+            if (newBRL !== null) {
+                const parsedBRL = parseValue(newBRL);
+                if (!isNaN(parsedBRL)) {
+                    rateBRL = parsedBRL;
+                    localStorage.setItem('tp_rate_brl', rateBRL);
+                }
             }
 
             const newARS = prompt("Modificar Tasa Manual\\n1 USD a ARS (Pesos):", rateARS);
-            if (newARS !== null && !isNaN(parseFloat(newARS))) {
-                rateARS = parseFloat(newARS);
-                localStorage.setItem('tp_rate_ars', rateARS);
+            if (newARS !== null) {
+                const parsedARS = parseValue(newARS);
+                if (!isNaN(parsedARS)) {
+                    rateARS = parsedARS;
+                    localStorage.setItem('tp_rate_ars', rateARS);
+                }
             }
 
             updateLabels();
@@ -185,10 +228,7 @@
             const inputUSD = document.getElementById('inputUSD');
             const inputARS = document.getElementById('inputARS');
 
-            let sourceInput;
-            if (source === 'USD') sourceInput = inputUSD;
-            if (source === 'BRL') sourceInput = inputBRL;
-            if (source === 'ARS') sourceInput = inputARS;
+            let sourceInput = document.getElementById('input' + source);
 
             if (sourceInput.value === '') {
                 if (source !== 'USD') inputUSD.value = '';
@@ -197,30 +237,31 @@
                 return;
             }
 
-            // Aceptar comas como separador decimal
-            const rawVal = sourceInput.value.replace(',', '.');
-            const val = parseFloat(rawVal);
+            const val = parseValue(sourceInput.value);
             if (isNaN(val)) return;
 
-            // Recálculo omnidireccional
             if (source === 'USD') {
-                inputBRL.value = (val * rateBRL).toFixed(2);
-                inputARS.value = (val * rateARS).toFixed(2);
+                inputBRL.value = formatNumber(val * rateBRL);
+                inputARS.value = formatNumber(val * rateARS);
             } else if (source === 'BRL') {
                 const usd = val / rateBRL;
-                inputUSD.value = usd.toFixed(2);
-                inputARS.value = (usd * rateARS).toFixed(2);
+                inputUSD.value = formatNumber(usd);
+                inputARS.value = formatNumber(usd * rateARS);
             } else if (source === 'ARS') {
                 const usd = val / rateARS;
-                inputUSD.value = usd.toFixed(2);
-                inputBRL.value = (usd * rateBRL).toFixed(2);
+                inputUSD.value = formatNumber(usd);
+                inputBRL.value = formatNumber(usd * rateBRL);
             }
         }
 
         window.onload = () => {
             updateLabels();
             fetchLiveRates();
-            document.getElementById('inputBRL').focus();
+            
+            // Setear valor por defecto en USD y calcular al inicio
+            document.getElementById('inputUSD').value = "100";
+            calc('USD');
+            formatActive('USD');
         };
 
         window.addEventListener('online', fetchLiveRates);
