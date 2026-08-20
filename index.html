@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Conversor TripPulse</title>
+    <link rel="apple-touch-icon" href="https://fav.farm/💱">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --bg: #000000;
+            --surface: #1c1c1e;
+            --surface2: #2c2c2e;
+            --surface3: #3a3a3c;
+            --label: #ffffff;
+            --label2: #98989d;
+            --label3: #636366;
+            --accent: #007aff;
+            --green: #30d158;
+            --orange: #ff9f0a;
+            --red: #ff453a;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; -webkit-tap-highlight-color: transparent; }
+        body {
+            background: var(--bg);
+            color: var(--label);
+            padding: calc(env(safe-area-inset-top) + 1rem) 1rem;
+        }
+        .container { max-width: 450px; margin: 0 auto; }
+        
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+        .subtitle { font-size: 0.85rem; color: var(--label2); }
+
+        .status-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 0.6rem 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.75rem; font-weight: 600; color: var(--label2); border: 1px solid var(--surface2); }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .dot-online { background: var(--green); }
+        .dot-offline { background: var(--orange); }
+        .btn-edit { background: var(--surface2); border: none; color: var(--label); padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.7rem; cursor: pointer; }
+
+        .currency-card { background: var(--surface); border-radius: 18px; padding: 1.2rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--surface2); transition: border-color 0.2s; }
+        .currency-card:focus-within { border-color: var(--accent); }
+        
+        .currency-info { display: flex; flex-direction: column; gap: 0.2rem; }
+        .currency-code { font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .currency-name { font-size: 0.8rem; color: var(--label2); }
+        
+        .currency-input { flex: 1; background: transparent; border: none; color: var(--label); font-size: 2.2rem; font-weight: 700; text-align: right; outline: none; font-variant-numeric: tabular-nums; width: 100%; padding-left: 1rem; }
+        .currency-input::placeholder { color: var(--surface3); }
+        
+        #inputUSD { color: var(--red); }
+
+        .rates-info { margin-top: 1.5rem; font-size: 0.75rem; color: var(--label3); text-align: center; line-height: 1.5; }
+        .rates-info span { font-weight: 600; color: var(--label2); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💱 TripPulse FX</h1>
+            <div class="subtitle">Conversor Dinámico & Offline</div>
+        </header>
+
+        <div class="status-bar">
+            <div>
+                <span class="status-dot dot-offline" id="netDot"></span>
+                <span id="netStatus">Iniciando...</span>
+            </div>
+            <button class="btn-edit" onclick="editRates()">⚙️ Ajustar Tasas</button>
+        </div>
+
+        <div class="currency-card">
+            <div class="currency-info">
+                <div class="currency-code">🇧🇷 BRL</div>
+                <div class="currency-name">Reales</div>
+            </div>
+            <input type="number" class="currency-input" id="inputBRL" placeholder="0" inputmode="decimal" oninput="calc('BRL')">
+        </div>
+
+        <div class="currency-card">
+            <div class="currency-info">
+                <div class="currency-code">🇺🇸 USD</div>
+                <div class="currency-name">Dólares</div>
+            </div>
+            <input type="number" class="currency-input" id="inputUSD" placeholder="0" inputmode="decimal" oninput="calc('USD')">
+        </div>
+
+        <div class="currency-card">
+            <div class="currency-info">
+                <div class="currency-code">🇦🇷 ARS</div>
+                <div class="currency-name">Pesos (Blue)</div>
+            </div>
+            <input type="number" class="currency-input" id="inputARS" placeholder="0" inputmode="decimal" oninput="calc('ARS')">
+        </div>
+
+        <div class="rates-info">
+            Tasa de cambio actual utilizada:<br>
+            1 USD = <span id="lblRateBRL">-</span> BRL<br>
+            1 USD = <span id="lblRateARS">-</span> ARS
+        </div>
+    </div>
+
+    <script>
+        // Tasas por defecto (Fallbacks si no hay internet o es la primera vez en el dispositivo)
+        let rateBRL = parseFloat(localStorage.getItem('tp_rate_brl')) || 5.45;
+        let rateARS = parseFloat(localStorage.getItem('tp_rate_ars')) || 1350.00;
+
+        function updateLabels() {
+            document.getElementById('lblRateBRL').textContent = rateBRL.toFixed(2);
+            document.getElementById('lblRateARS').textContent = rateARS.toFixed(2);
+        }
+
+        async function fetchLiveRates() {
+            const netDot = document.getElementById('netDot');
+            const netStatus = document.getElementById('netStatus');
+
+            if (!navigator.onLine) {
+                netDot.className = 'status-dot dot-offline';
+                netStatus.textContent = 'Modo Offline (Tasas guardadas)';
+                updateLabels();
+                return;
+            }
+
+            netStatus.textContent = 'Actualizando tasas...';
+            
+            try {
+                // 1. Fetch Dólar Global -> BRL
+                const resBRL = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (resBRL.ok) {
+                    const dataBRL = await resBRL.json();
+                    rateBRL = dataBRL.rates.BRL;
+                    localStorage.setItem('tp_rate_brl', rateBRL);
+                }
+
+                // 2. Fetch Dólar Blue Argentina -> ARS (DolarAPI - Sin CORS)
+                const resARS = await fetch('https://dolarapi.com/v1/dolares/blue');
+                if (resARS.ok) {
+                    const dataARS = await resARS.json();
+                    rateARS = dataARS.venta;
+                    localStorage.setItem('tp_rate_ars', rateARS);
+                }
+
+                netDot.className = 'status-dot dot-online';
+                netStatus.textContent = 'Tasas Online actualizadas';
+            } catch (e) {
+                netDot.className = 'status-dot dot-offline';
+                netStatus.textContent = 'Fallo de red. Usando última caché.';
+            }
+            
+            updateLabels();
+            
+            // Si hay un valor previamente escrito, recalcular automáticamente con las tasas nuevas
+            if (document.getElementById('inputUSD').value !== '') {
+                calc('USD');
+            } else if (document.getElementById('inputBRL').value !== '') {
+                calc('BRL');
+            }
+        }
+
+        function editRates() {
+            const newBRL = prompt("Modificar Tasa Manual\\n1 USD a BRL (Reales):", rateBRL);
+            if (newBRL !== null && !isNaN(parseFloat(newBRL))) {
+                rateBRL = parseFloat(newBRL);
+                localStorage.setItem('tp_rate_brl', rateBRL);
+            }
+
+            const newARS = prompt("Modificar Tasa Manual\\n1 USD a ARS (Pesos):", rateARS);
+            if (newARS !== null && !isNaN(parseFloat(newARS))) {
+                rateARS = parseFloat(newARS);
+                localStorage.setItem('tp_rate_ars', rateARS);
+            }
+
+            updateLabels();
+            document.getElementById('netDot').className = 'status-dot dot-offline';
+            document.getElementById('netStatus').textContent = 'Tasas configuradas manualmente';
+            
+            if (document.getElementById('inputUSD').value) calc('USD');
+            else if (document.getElementById('inputBRL').value) calc('BRL');
+            else if (document.getElementById('inputARS').value) calc('ARS');
+        }
+
+        function calc(source) {
+            const inputBRL = document.getElementById('inputBRL');
+            const inputUSD = document.getElementById('inputUSD');
+            const inputARS = document.getElementById('inputARS');
+
+            let sourceInput;
+            if (source === 'USD') sourceInput = inputUSD;
+            if (source === 'BRL') sourceInput = inputBRL;
+            if (source === 'ARS') sourceInput = inputARS;
+
+            if (sourceInput.value === '') {
+                if (source !== 'USD') inputUSD.value = '';
+                if (source !== 'BRL') inputBRL.value = '';
+                if (source !== 'ARS') inputARS.value = '';
+                return;
+            }
+
+            // Aceptar comas como separador decimal
+            const rawVal = sourceInput.value.replace(',', '.');
+            const val = parseFloat(rawVal);
+            if (isNaN(val)) return;
+
+            // Recálculo omnidireccional
+            if (source === 'USD') {
+                inputBRL.value = (val * rateBRL).toFixed(2);
+                inputARS.value = (val * rateARS).toFixed(2);
+            } else if (source === 'BRL') {
+                const usd = val / rateBRL;
+                inputUSD.value = usd.toFixed(2);
+                inputARS.value = (usd * rateARS).toFixed(2);
+            } else if (source === 'ARS') {
+                const usd = val / rateARS;
+                inputUSD.value = usd.toFixed(2);
+                inputBRL.value = (usd * rateBRL).toFixed(2);
+            }
+        }
+
+        window.onload = () => {
+            updateLabels();
+            fetchLiveRates();
+            document.getElementById('inputBRL').focus();
+        };
+
+        window.addEventListener('online', fetchLiveRates);
+        window.addEventListener('offline', () => {
+            document.getElementById('netDot').className = 'status-dot dot-offline';
+            document.getElementById('netStatus').textContent = 'Sin conexión (Modo Offline)';
+        });
+    </script>
+</body>
+</html>
