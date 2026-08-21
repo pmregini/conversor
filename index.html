@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
     <title>Conversor TripPulse</title>
     <link rel="apple-touch-icon" href="https://fav.farm/💱">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -30,7 +31,8 @@
         .container { max-width: 450px; margin: 0 auto; }
         
         header { text-align: center; margin-bottom: 2rem; }
-        h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+        h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; }
+        .version-badge { font-size: 0.65rem; font-weight: 700; color: var(--label3); background: var(--surface2); padding: 0.15rem 0.4rem; border-radius: 6px; border: 1px solid var(--surface3); transform: translateY(-2px); }
         .subtitle { font-size: 0.85rem; color: var(--label2); }
 
         .status-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 0.6rem 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.75rem; font-weight: 600; color: var(--label2); border: 1px solid var(--surface2); }
@@ -51,6 +53,14 @@
         .currency-input { background: transparent; border: none; color: var(--label); font-size: 2.2rem; font-weight: 700; text-align: right; outline: none; font-variant-numeric: tabular-nums; width: 100%; min-width: 0; padding: 0; margin: 0; }
         .currency-input::placeholder { color: var(--surface3); }
         
+        /* Ocultar spin buttons nativos */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
         #inputUSD, #symUSD { color: var(--red); }
 
         .rates-info { margin-top: 1.5rem; font-size: 0.75rem; color: var(--label3); text-align: center; line-height: 1.5; }
@@ -60,7 +70,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>💱 TripPulse FX</h1>
+            <h1>💱 TripPulse FX <span class="version-badge">v4.8</span></h1>
             <div class="subtitle">Conversor Dinámico & Offline</div>
         </header>
 
@@ -121,7 +131,6 @@
             document.getElementById('lblRateARS').textContent = rateARS.toLocaleString('es-AR', {minimumFractionDigits: 2});
         }
 
-        // Transforma strings humanos (ej: 1.500,50 o 1500.5) en números reales (float)
         function parseValue(str) {
             if (!str) return NaN;
             let cleaned = str.replace(/[^\d.,]/g, '');
@@ -138,7 +147,6 @@
             return parseFloat(cleaned);
         }
 
-        // Formatea números reales en formato amigable (ej: 1.500.000,00)
         function formatNumber(num) {
             return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
@@ -165,14 +173,14 @@
             netStatus.textContent = 'Actualizando tasas...';
             
             try {
-                const resBRL = await fetch('https://open.er-api.com/v6/latest/USD');
+                const resBRL = await fetch('https://open.er-api.com/v6/latest/USD', { cache: "no-store" });
                 if (resBRL.ok) {
                     const dataBRL = await resBRL.json();
                     rateBRL = dataBRL.rates.BRL;
                     localStorage.setItem('tp_rate_brl', rateBRL);
                 }
 
-                const resARS = await fetch('https://dolarapi.com/v1/dolares/blue');
+                const resARS = await fetch('https://dolarapi.com/v1/dolares/blue', { cache: "no-store" });
                 if (resARS.ok) {
                     const dataARS = await resARS.json();
                     rateARS = dataARS.venta;
@@ -196,7 +204,7 @@
         }
 
         function editRates() {
-            const newBRL = prompt("Modificar Tasa Manual\\n1 USD a BRL (Reales):", rateBRL);
+            const newBRL = prompt("Modificar Tasa Manual\n1 USD a BRL (Reales):", rateBRL);
             if (newBRL !== null) {
                 const parsedBRL = parseValue(newBRL);
                 if (!isNaN(parsedBRL)) {
@@ -205,7 +213,7 @@
                 }
             }
 
-            const newARS = prompt("Modificar Tasa Manual\\n1 USD a ARS (Pesos):", rateARS);
+            const newARS = prompt("Modificar Tasa Manual\n1 USD a ARS (Pesos):", rateARS);
             if (newARS !== null) {
                 const parsedARS = parseValue(newARS);
                 if (!isNaN(parsedARS)) {
